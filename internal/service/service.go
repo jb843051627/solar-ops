@@ -13,13 +13,15 @@ import (
 
 // 错误哨兵
 var (
-	ErrInverterNotFound = errors.New("inverter not found")
-	ErrSiteNotFound     = errors.New("site not found")
-	ErrAlertNotFound    = errors.New("alert not found")
-	ErrMaintenanceNotFound = errors.New("maintenance task not found")
-	ErrCleaningNotFound  = errors.New("cleaning schedule not found")
-	ErrInvalidThreshold  = errors.New("invalid threshold value")
-	ErrInvalidDateRange  = errors.New("invalid date range")
+	ErrInverterNotFound     = errors.New("inverter not found")
+	ErrSiteNotFound         = errors.New("site not found")
+	ErrAlertNotFound        = errors.New("alert not found")
+	ErrMaintenanceNotFound  = errors.New("maintenance task not found")
+	ErrCleaningNotFound     = errors.New("cleaning schedule not found")
+	ErrInvalidThreshold     = errors.New("invalid threshold value")
+	ErrInvalidDateRange     = errors.New("invalid date range")
+	ErrTaskAlreadyCompleted = errors.New("task already completed")
+	ErrTaskUpdateFailed     = errors.New("task update failed")
 )
 
 // 告警阈值常量
@@ -369,7 +371,7 @@ func (svc *MonitoringService) CompleteMaintenanceTask(id string, notes string) e
 		return fmt.Errorf("%w: %s", ErrMaintenanceNotFound, id)
 	}
 	if task.Status == model.MaintCompleted {
-		return fmt.Errorf("task %s already completed", id)
+		return fmt.Errorf("%w: %s", ErrTaskAlreadyCompleted, id)
 	}
 	now := time.Now()
 	task.Status = model.MaintCompleted
@@ -377,7 +379,7 @@ func (svc *MonitoringService) CompleteMaintenanceTask(id string, notes string) e
 	task.Notes = notes
 	task.UpdatedAt = now
 	if err := svc.store.UpdateMaintenanceTask(task); err != nil {
-		return fmt.Errorf("update failed: %w", err)
+		return fmt.Errorf("%w: %v", ErrTaskUpdateFailed, err)
 	}
 	return nil
 }
