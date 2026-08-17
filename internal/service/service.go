@@ -149,9 +149,9 @@ func (svc *MonitoringService) IngestGenerationRecord(rec *model.GenerationRecord
 		return err
 	}
 	// 更新缓存
-	svc.mu.Lock()
+	svc.mu.RLock()
 	svc.latestReadings[rec.InverterID] = *rec
-	svc.mu.Unlock()
+	svc.mu.RUnlock()
 
 	// 更新逆变器状态和温度
 	newStatus := model.StatusOnline
