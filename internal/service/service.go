@@ -311,6 +311,40 @@ func (svc *MonitoringService) ListAlerts(status string, inverterID string) ([]mo
 	return svc.store.ListAlerts(status, inverterID)
 }
 
+// GetCachedAlerts 获取缓存的告警列表（返回缓存切片引用）
+func (svc *MonitoringService) GetCachedAlerts(inverterID string) []model.Alert {
+	svc.alertMu.Lock()
+	defer svc.alertMu.Unlock()
+	alerts, ok := svc.alertCache[inverterID]
+	if !ok {
+		return nil
+	}
+	return alerts
+}
+
+// SortAlertsByLevel 按告警等级排序（critical > warning > info），就地排序
+func (svc *MonitoringService) SortAlertsByLevel(inverterID string) []model.Alert {
+	alerts := svc.GetCachedAlerts(inverterID)
+	if len(alerts) == 0 {
+		return alerts
+	}
+	levelOrder := map[model.AlertLevel]int{
+		model.AlertCritical: 0,
+		model.AlertWarning:  1,
+		model.AlertInfo:     2,
+	}
+	for i := 1; i < len(alerts); i++ {
+		for j := i; j > 0; j-- {
+			if levelOrder[alerts[j].Level] < levelOrder[alerts[j-1].Level] {
+				alerts[j], alerts[j-1] = alerts[j-1], alerts[j]
+			} else {
+				break
+			}
+		}
+	}
+	return alerts
+}
+
 // ---------- 维保工单 ----------
 
 // CreateMaintenanceTask 创建维保工单
