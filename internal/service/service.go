@@ -670,7 +670,7 @@ func (svc *MonitoringService) CalculatePerformanceRatio(inverterID string, start
 
 // GetEfficiencyReport 获取效率报告
 func (svc *MonitoringService) GetEfficiencyReport(inverterID string, date time.Time) (*model.EfficiencyReport, error) {
-	inv, err := svc.store.GetInverter(inverterID)
+	inv, err := svc.store.GetInverterByID(inverterID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInverterNotFound, inverterID)
 	}

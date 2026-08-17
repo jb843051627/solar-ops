@@ -276,6 +276,23 @@ func (s *Store) GetInverter(id string) (*model.Inverter, error) {
 	return &inv, nil
 }
 
+// GetInverterByID 按ID查询逆变器（不存在时返回 nil, nil）
+func (s *Store) GetInverterByID(id string) (*model.Inverter, error) {
+	row := s.db.QueryRow(
+		`SELECT id, name, site_id, model, manufacturer, rated_power_kw, status, temperature_c, firmware_ver, commission_date, created_at, updated_at
+		 FROM inverters WHERE id = ?`, id)
+	var inv model.Inverter
+	err := row.Scan(&inv.ID, &inv.Name, &inv.SiteID, &inv.Model, &inv.Manufacturer, &inv.RatedPowerKW,
+		&inv.Status, &inv.TemperatureC, &inv.FirmwareVer, &inv.CommissionDate, &inv.CreatedAt, &inv.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get inverter by id %s: %w", id, err)
+	}
+	return &inv, nil
+}
+
 func (s *Store) ListInverters(siteID string) ([]model.Inverter, error) {
 	var rows *sql.Rows
 	var err error
