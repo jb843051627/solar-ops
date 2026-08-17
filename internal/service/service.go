@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -859,7 +860,63 @@ func (svc *MonitoringService) runPeriodicCheck() {
 	// 检查所有在线逆变器是否有数据上报超时
 	// 检查所有活跃告警是否需要自动升级
 	// 检查清洗排程是否到期
-	// 实际实现简化
+	// 注意：此处使用独立 context（不感知父 ctx 取消）
+	ctx := context.Background()
+	svc.checkInverterTimeouts(ctx)
+	svc.checkCleaningSchedules(ctx)
+}
+
+// checkInverterTimeouts 检查逆变器上报超时
+func (svc *MonitoringService) checkInverterTimeouts(ctx context.Context) {
+	// 查询所有在线逆变器，检查最后上报时间是否超时
+	inverters, err := svc.store.ListInverters("")
+	if err != nil {
+		return
+	}
+	for _, inv := range inverters {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		if inv.Status == model.StatusOnline {
+			recs, err := svc.store.GetLatestRecords(inv.ID, 1)
+			if err == nil && len(recs) > 0 {
+				lastTime := recs[0].Timestamp
+				if time.Since(lastTime) > 5*time.Minute {
+					// 上报超时，标记离线
+					_ = svc.UpdateInverterStatus(inv.ID, model.StatusOffline, inv.TemperatureC)
+					// 创建告警
+					svc.createAlert(&inv, &recs[0], model.AlertWarning, "F007",
+						fmt.Sprintf("逆变器 %s 通信中断", inv.Name),
+						time.Since(lastTime).Minutes(), 5)
+				}
+			}
+		}
+	}
+}
+
+// checkCleaningSchedules 检查清洗排程
+func (svc *MonitoringService) checkCleaningSchedules(ctx context.Context) {
+	// 查询待执行的清洗排程
+	schedules, err := svc.store.ListCleaningSchedules("pending", "")
+	if err != nil {
+		return
+	}
+	now := time.Now()
+	for _, cs := range schedules {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		if cs.ScheduledFor.Before(now) {
+			// 排程到期，更新状态为已排程
+			cs.Status = model.CleaningScheduled
+			cs.UpdatedAt = now
+			_ = svc.store.UpdateCleaningSchedule(&cs)
+		}
+	}
 }
 
 // handleAlertNotification 处理告警通知
