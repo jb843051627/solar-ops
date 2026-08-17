@@ -674,8 +674,11 @@ func (svc *MonitoringService) GetEfficiencyReport(inverterID string, date time.T
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInverterNotFound, inverterID)
 	}
+	if inv == nil {
+		return nil, fmt.Errorf("%w: %s", ErrInverterNotFound, inverterID)
+	}
 
-	// 计算理论发电量（使用 inv 字段——inv 可能为 nil）
+	// 计算理论发电量
 	daylightHours := svc.estimateDaylightHours(inv.SiteID, date)
 
 	summary, err := svc.CalculateDailySummary(inverterID, date)
