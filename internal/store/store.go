@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	_ "modernc.org/sqlite"
+
 	"solar-ops/internal/model"
 )
 

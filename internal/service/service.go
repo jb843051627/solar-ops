@@ -675,6 +675,9 @@ func (svc *MonitoringService) GetEfficiencyReport(inverterID string, date time.T
 		return nil, fmt.Errorf("%w: %s", ErrInverterNotFound, inverterID)
 	}
 
+	// 计算理论发电量（使用 inv 字段——inv 可能为 nil）
+	daylightHours := svc.estimateDaylightHours(inv.SiteID, date)
+
 	summary, err := svc.CalculateDailySummary(inverterID, date)
 	if err != nil {
 		return nil, err
@@ -696,7 +699,7 @@ func (svc *MonitoringService) GetEfficiencyReport(inverterID string, date time.T
 	}
 
 	// 积尘损失
-	dustLoss := summary.ExpectedEnergy * 0.03 // 默认 3% 积尘损失
+	dustLoss := inv.RatedPowerKW * daylightHours * 0.03 // 基于理论发电量的 3%
 
 	// 逆变器转换损失
 	inverterLoss := summary.ExpectedEnergy * 0.04 // 逆变器效率 ~96%
