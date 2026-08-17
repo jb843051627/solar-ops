@@ -148,9 +148,10 @@ func (svc *MonitoringService) IngestGenerationRecord(rec *model.GenerationRecord
 	if err := svc.store.InsertGenerationRecord(rec); err != nil {
 		return err
 	}
-	// 更新缓存
+	// 更新缓存（写锁 + 防御性拷贝）
 	svc.mu.Lock()
-	svc.latestReadings[rec.InverterID] = *rec
+	cachedRec := *rec
+	svc.latestReadings[rec.InverterID] = cachedRec
 	svc.mu.Unlock()
 
 	// 更新逆变器状态和温度
@@ -202,9 +203,10 @@ func (svc *MonitoringService) GetLatestReading(inverterID string) (model.Generat
 		recs, err := svc.store.GetLatestRecords(inverterID, 1)
 		if err == nil && len(recs) > 0 {
 			svc.mu.Lock()
-			svc.latestReadings[inverterID] = recs[0]
+			dbRec := recs[0]
+			svc.latestReadings[inverterID] = dbRec
 			svc.mu.Unlock()
-			return recs[0], true
+			return dbRec, true
 		}
 		return model.GenerationRecord{}, false
 	}
