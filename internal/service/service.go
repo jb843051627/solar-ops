@@ -837,7 +837,7 @@ func (svc *MonitoringService) ListDailySummaries(siteID string, start, end time.
 // ---------- 后台监控 goroutine ----------
 
 // StartBackgroundMonitor 启动后台监控
-func (svc *MonitoringService) StartBackgroundMonitor(ctx interface{ Done() <-chan struct{} }) {
+func (svc *MonitoringService) StartBackgroundMonitor(ctx context.Context) {
 	go func() {
 		ticker := time.NewTicker(60 * time.Second)
 		defer ticker.Stop()
@@ -846,7 +846,7 @@ func (svc *MonitoringService) StartBackgroundMonitor(ctx interface{ Done() <-cha
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				svc.runPeriodicCheck()
+				svc.runPeriodicCheck(ctx)
 			case alert := <-svc.notifyCh:
 				// 异步处理告警通知（写入维保建议等）
 				svc.handleAlertNotification(alert)
@@ -856,12 +856,7 @@ func (svc *MonitoringService) StartBackgroundMonitor(ctx interface{ Done() <-cha
 }
 
 // runPeriodicCheck 周期检查
-func (svc *MonitoringService) runPeriodicCheck() {
-	// 检查所有在线逆变器是否有数据上报超时
-	// 检查所有活跃告警是否需要自动升级
-	// 检查清洗排程是否到期
-	// 注意：此处使用独立 context（不感知父 ctx 取消）
-	ctx := context.Background()
+func (svc *MonitoringService) runPeriodicCheck(ctx context.Context) {
 	svc.checkInverterTimeouts(ctx)
 	svc.checkCleaningSchedules(ctx)
 }
@@ -874,11 +869,7 @@ func (svc *MonitoringService) checkInverterTimeouts(ctx context.Context) {
 		return
 	}
 	for _, inv := range inverters {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-		}
+		// bug: 不检查 ctx.Done()，即使父 ctx 已取消也继续遍历
 		if inv.Status == model.StatusOnline {
 			recs, err := svc.store.GetLatestRecords(inv.ID, 1)
 			if err == nil && len(recs) > 0 {
