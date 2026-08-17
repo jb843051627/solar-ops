@@ -366,7 +366,7 @@ func (svc *MonitoringService) UpdateMaintenanceTask(task *model.MaintenanceTask)
 func (svc *MonitoringService) CompleteMaintenanceTask(id string, notes string) error {
 	task, err := svc.store.GetMaintenanceTask(id)
 	if err != nil {
-		return fmt.Errorf("get task failed: %v", err)
+		return fmt.Errorf("%w: %s", ErrMaintenanceNotFound, id)
 	}
 	if task.Status == model.MaintCompleted {
 		return fmt.Errorf("task %s already completed", id)
@@ -377,7 +377,7 @@ func (svc *MonitoringService) CompleteMaintenanceTask(id string, notes string) e
 	task.Notes = notes
 	task.UpdatedAt = now
 	if err := svc.store.UpdateMaintenanceTask(task); err != nil {
-		return fmt.Errorf("update failed: %v", err)
+		return fmt.Errorf("update failed: %w", err)
 	}
 	return nil
 }
