@@ -2,7 +2,7 @@
 
 ## 基础镜像
 
-`golang:1.22-bookworm`（与 go.mod 语言版本 1.22 对齐）
+`golang:1.25-bookworm`（与 go.mod 语言版本 1.25.0 对齐；2026-08-18 阶段 5.5 补跑修复：原 1.22 与 go.mod 1.25.0 不匹配，GOTOOLCHAIN=local 下 docker build 报 `go.mod requires go >= 1.25.0`）
 
 ## 环境变量
 
