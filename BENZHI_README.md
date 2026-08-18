@@ -13,14 +13,14 @@
 
 ```bash
 # amd64
-./build_benzhi_docker.sh solar-ops-bug-1 linux/amd64
+./build_benzhi_docker.sh solar-ops-base linux/amd64
 
 # arm64 (QEMU 模拟)
-./build_benzhi_docker.sh solar-ops-bug-1 linux/arm64
+./build_benzhi_docker.sh solar-ops-base linux/arm64
 ```
 
 ## 运行
 
 ```bash
-docker run --rm -e SOLAR_OPS_DB=/data/solar-ops.db -p 8080:8080 benzhi/solar-ops-bug-1:latest
+docker run --rm -e SOLAR_OPS_DB=/data/solar-ops.db -p 8080:8080 benzhi/solar-ops-base:latest
 ```
