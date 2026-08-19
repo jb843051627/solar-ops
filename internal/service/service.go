@@ -869,7 +869,11 @@ func (svc *MonitoringService) checkInverterTimeouts(ctx context.Context) {
 		return
 	}
 	for _, inv := range inverters {
-		// bug: 不检查 ctx.Done()，即使父 ctx 已取消也继续遍历
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
 		if inv.Status == model.StatusOnline {
 			recs, err := svc.store.GetLatestRecords(inv.ID, 1)
 			if err == nil && len(recs) > 0 {
