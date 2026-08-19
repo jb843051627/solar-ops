@@ -1,0 +1,116 @@
+package service
+
+import (
+	"path/filepath"
+	"testing"
+	"time"
+
+	_ "modernc.org/sqlite"
+
+	"solar-ops/internal/model"
+	"solar-ops/internal/store"
+)
+
+func newTestService2(t *testing.T) *MonitoringService {
+	t.Helper()
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	s, err := store.NewStore(dbPath)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	t.Cleanup(func() { s.Close() })
+	return NewMonitoringService(s)
+}
+
+func TestBug002_SortAlertsByLevel_CachePollution(t *testing.T) {
+	svc := newTestService2(t)
+
+	// 写入站点
+	now := time.Now()
+	site := &model.Site{
+		ID:           "site-1",
+		Name:         "TestSite",
+		Location:     "TestLoc",
+		Latitude:     30.0,
+		Longitude:    120.0,
+		CapacityKW:   100.0,
+		Timezone:     "Asia/Shanghai",
+		CommissionDate: now,
+		Active:       true,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := svc.store.CreateSite(site); err != nil {
+		t.Fatalf("create site: %v", err)
+	}
+
+	// 写入逆变器
+	inv := &model.Inverter{
+		ID:           "inv-sort-001",
+		Name:         "SortTest",
+		SiteID:       "site-1",
+		Model:        "SUN-10K",
+		Manufacturer: "TestMfr",
+		RatedPowerKW: 10.0,
+		Status:       model.StatusOnline,
+		TemperatureC: 35.0,
+		CommissionDate: now,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := svc.store.CreateInverter(inv); err != nil {
+		t.Fatalf("create inverter: %v", err)
+	}
+
+	// 写入发电记录（触发告警）
+	rec := &model.GenerationRecord{
+		ID:           "gen-sort-001",
+		InverterID:   inv.ID,
+		SiteID:       inv.SiteID,
+		Timestamp:    now,
+		PowerKW:      5.0,
+		EnergyKWh:    2.5,
+		Voltage:      150,
+		Current:      33.3,
+		TemperatureC: 70,
+		Irradiance:   800,
+		CreatedAt:    now,
+	}
+	if err := svc.IngestGenerationRecord(rec); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+
+	// 获取缓存告警（第一次）
+	firstCall := svc.GetCachedAlerts(inv.ID)
+	if len(firstCall) < 2 {
+		t.Fatalf("expected at least 2 alerts, got %d", len(firstCall))
+	}
+
+	// 执行排序（就地排序共享切片引用）
+	svc.SortAlertsByLevel(inv.ID)
+
+	// 获取缓存告警（第二次）
+	secondCall := svc.GetCachedAlerts(inv.ID)
+
+	// bug: GetCachedAlerts 返回缓存切片引用 → firstCall 和 secondCall 共享同一底层数组
+	// → SortAlertsByLevel 排序的修改直接反映到缓存
+	// 修复后: GetCachedAlerts 返回副本 → firstCall 和 secondCall 底层数组不同
+	// 验证: 两次调用返回的切片是否共享底层数组
+	// 如果共享底层数组（bug），firstCall[0] 的 ID 和 secondCall[0] 的 ID 相同（都指向修改后的数据）
+	// 但关键是验证它们不是同一个底层数组
+
+	// 更直接的验证：如果两次返回引用同一底层数组，
+	// 修改 secondCall 会影响后续 GetCachedAlerts 返回值
+	// 而如果返回副本（修复后），修改 secondCall 不影响缓存
+
+	if len(secondCall) > 0 {
+		// 修改 secondCall 的第一个元素
+		originalID := secondCall[0].ID
+		secondCall[0].ID = "MODIFIED"
+		// 再获取一次
+		thirdCall := svc.GetCachedAlerts(inv.ID)
+		if len(thirdCall) > 0 && thirdCall[0].ID == "MODIFIED" {
+			t.Fatalf("cache pollution detected: modifying returned slice affected cache (original ID %s was overwritten)", originalID)
+		}
+	}
+}
