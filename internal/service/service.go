@@ -311,7 +311,7 @@ func (svc *MonitoringService) ListAlerts(status string, inverterID string) ([]mo
 	return svc.store.ListAlerts(status, inverterID)
 }
 
-// GetCachedAlerts 获取缓存的告警列表（返回缓存切片引用）
+// GetCachedAlerts 获取缓存的告警列表（返回切片副本，防止外部修改污染缓存）
 func (svc *MonitoringService) GetCachedAlerts(inverterID string) []model.Alert {
 	svc.alertMu.Lock()
 	defer svc.alertMu.Unlock()
@@ -319,7 +319,9 @@ func (svc *MonitoringService) GetCachedAlerts(inverterID string) []model.Alert {
 	if !ok {
 		return nil
 	}
-	return alerts
+	result := make([]model.Alert, len(alerts))
+	copy(result, alerts)
+	return result
 }
 
 // SortAlertsByLevel 按告警等级排序（critical > warning > info），就地排序
